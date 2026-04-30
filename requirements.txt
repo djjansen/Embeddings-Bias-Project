@@ -1,5 +1,7 @@
-tdqm
+tqdm
 pandas
 numpy
 transformers
 openai
+torch
+accelerate
