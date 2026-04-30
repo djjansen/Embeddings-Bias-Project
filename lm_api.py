@@ -2,6 +2,7 @@ from openai import OpenAI
 from transformers import pipeline
 
 import numpy as np
+from tqdm import tqdm
 
 
 class ApiClient:
@@ -22,17 +23,18 @@ class ApiClient:
         return lg_prob
     
 
-    def add_scores_to_df(self, df):
+    def add_scores_to_df(self, df, score_col):
         target_probabilities = []
         prior_probabilities = []
         scores = []
 
-        for row in df.iloc:  # remember, anything with an index is iterable
+        for i in tqdm(range(len(df))):
+            row = df.iloc[i]
             target_probabilities.append( self.get_token_prob(row['Sent_TM'], row['Person']) )
             prior_probabilities.append( self.get_token_prob(row['Sent_TAM'], row['Person']) )
             scores.append( np.log( np.exp(target_probabilities[-1]) / np.exp(prior_probabilities[-1]) ) )
 
-        df['scores'] = scores
+        df[score_col] = scores
 
         return df
 
@@ -72,8 +74,8 @@ class BertClient(ApiClient):
 
     def get_token_prob(self, sentence, token):
         try:
-            prob = self.client(sentence, targets=token)[0]['score']
+            prob = self.client(sentence, targets=token.lower())[0]['score']
         except TypeError:
-            prob = self.client(sentence, targets=token)[0][0]['score']
+            prob = self.client(sentence, targets=token.lower())[0][0]['score']
         
         return np.log(prob)
