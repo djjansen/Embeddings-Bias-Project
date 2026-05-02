@@ -1,7 +1,9 @@
 from openai import OpenAI
-from transformers import pipeline
+from transformers import pipeline, AutoModelForCausalLM, AutoTokenizer
+import torch
 
 import numpy as np
+import gc
 from tqdm import tqdm
 
 
@@ -18,7 +20,8 @@ class ApiClient:
         try:
             lg_prob = log_probs[token]
         except KeyError:
-            lg_prob = 0
+            # return a very low log probability ~= to prob=0.0 if the token is not in the log_probs dictionary
+            lg_prob = -float('inf')
         
         return lg_prob
     
@@ -65,7 +68,7 @@ class OpenAiClient(ApiClient):
 
         return log_probs_dict
     
-# Child inherits from Parent
+
 class BertClient(ApiClient):
     def __init__(self, model):
         super().__init__(model)
@@ -79,3 +82,40 @@ class BertClient(ApiClient):
             prob = self.client(sentence, targets=token.lower())[0][0]['score']
         
         return np.log(prob)
+    
+
+class LlamaClient(ApiClient):
+    def __init__(self, model, key):
+        super().__init__(model, key)
+        self.client = AutoModelForCausalLM.from_pretrained(model, device_map="auto", token=key)
+        self.tokenizer = AutoTokenizer.from_pretrained(model, device_map="auto", token=key)
+
+
+    def request(self, payload, n_logprobs=20):
+        # clear memory before each request to avoid OOM errors
+        torch.cuda.empty_cache()
+        gc.collect()
+        inputs = self.tokenizer(f'{self.prompt}\n{payload}', return_tensors="pt").to(self.client.device)
+        outputs = self.client.generate(
+            **inputs,
+            max_new_tokens=10,
+            output_scores=True,            #
+            return_dict_in_generate=True   #
+        )
+
+        # scores is a tuple of (batch_size, vocab_size) with logits
+        next_token_logits = outputs.scores[0]
+        # apply softmax to get log probabilities
+        next_token_logprobs = torch.nn.functional.log_softmax(next_token_logits, dim=-1) #
+
+        # Get top n
+        top_logprobs, top_indices = torch.topk(next_token_logprobs, n_logprobs, dim=-1) #
+        top_tokens = self.tokenizer.convert_ids_to_tokens(top_indices[0])
+
+        log_probs_dict = {}
+
+        for token, logprob in zip(top_tokens, top_logprobs[0]):
+            # clean space token from Llama 3 output and add to dictionary
+            log_probs_dict[token.strip().replace('Ġ', '')] = logprob.item()
+
+        return log_probs_dict
