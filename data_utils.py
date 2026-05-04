@@ -9,6 +9,14 @@ def load_bec_data(path):
     .sort_values(by='Profession')
 
 
+def synthesize_bec_data(df, target_word, target_gender):
+    df['Person'] = target_word
+    df['Gender'] = target_gender
+
+    return df \
+    .sort_values(by='Profession')
+
+
 
 def add_scores(func, df):
     target_probabilities = []
