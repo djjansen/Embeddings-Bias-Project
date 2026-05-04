@@ -26,6 +26,8 @@ def add_scores(func, df):
 
 
 def get_gender_scores(df):
-    return df[['Profession', 'Gender', 'score']] \
-    .groupby(['Profession', 'Gender']).mean() \
+    score_cols = [col for col in df.columns.tolist() if 'score' in col]
+    return df[['Profession', 'Prof_Gender', 'Gender'] + score_cols] \
+    .groupby(['Profession', 'Prof_Gender', 'Gender']).mean() \
     .reset_index()
+8

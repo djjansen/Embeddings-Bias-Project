@@ -20,8 +20,8 @@ class ApiClient:
         try:
             lg_prob = log_probs[token]
         except KeyError:
-            # return a very low log probability ~= to prob=0.0 if the token is not in the log_probs dictionary
-            lg_prob = -float('inf')
+            # return a very low log probability ~= to prob=0.006 if the token is not in the log_probs dictionary
+            lg_prob = -5
         
         return lg_prob
     
