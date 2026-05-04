@@ -33,9 +33,28 @@ def add_scores(func, df):
     return df
 
 
-def get_gender_scores(df):
+def get_profession_mean_scores(df):
     score_cols = [col for col in df.columns.tolist() if 'score' in col]
     return df[['Profession', 'Prof_Gender', 'Gender'] + score_cols] \
     .groupby(['Profession', 'Prof_Gender', 'Gender']).mean() \
     .reset_index()
-8
+
+
+def get_prof_gender_mean_scores(df):
+    score_cols = [col for col in df.columns.tolist() if 'score' in col]
+    df = df[['Prof_Gender', 'Gender'] + score_cols] \
+    .groupby(['Prof_Gender', 'Gender']).mean() \
+    .reset_index()
+
+    # re-format as long for charts
+    df_long = pd.melt(
+    df, 
+    id_vars=['Prof_Gender', 'Gender'], 
+    value_vars=['bert_score', 'gpt4_1_nano_score', 'gpt5_4_score', 'llama_3_1_8b_score'],
+    var_name='Model',  
+    value_name='Score' 
+    )
+
+    df_long['Model'] = df_long['Model'].str.replace('_score', '').str.replace('_', ' ').str.title()
+
+    return df_long

@@ -6,3 +6,5 @@ openai
 torch
 accelerate
 gptqmodel
+plotly
+nbformat
