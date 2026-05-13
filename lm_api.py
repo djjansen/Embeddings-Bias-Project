@@ -6,14 +6,14 @@ import numpy as np
 import gc
 from tqdm import tqdm
 
-
+# parent class for LM clients. May leverage APIs, local models, etc.
 class ApiClient:
     def __init__(self, model, key=None, prompt=None):
         self.api_key = key
         self.prompt = prompt
         self.model = model
 
-
+    # fetch target word log prob from dict returned by request
     def get_token_prob(self, sentence, token):
         log_probs = self.request(sentence)
 
@@ -26,6 +26,7 @@ class ApiClient:
         return lg_prob
     
 
+    # loop through df rows, get log probs of interest, append as column
     def add_scores_to_df(self, df, score_col):
         target_probabilities = []
         prior_probabilities = []
@@ -42,7 +43,7 @@ class ApiClient:
         return df
 
 
-# Child inherits from Parent
+# sub-class for OpenAi api
 class OpenAiClient(ApiClient):
     def __init__(self, key, prompt, model):
         self.key = key
@@ -50,14 +51,16 @@ class OpenAiClient(ApiClient):
         self.client = OpenAI(api_key=self.api_key)
 
 
+    # make API request, including logprob parameters
     def request(self, payload, n_logprobs=20):
         response = self.client.responses.create(
         model=self.model,
-        input=f'{self.prompt}\n{payload}',
+        input=f'{self.prompt}\n{payload}', # combine masked text and prompt instructions
         top_logprobs=n_logprobs,
         include=["message.output_text.logprobs"] 
         )
 
+        # format output as dict {token: lg_prob}
         log_probs_dict = {}
         output = response.output
 
@@ -69,12 +72,14 @@ class OpenAiClient(ApiClient):
         return log_probs_dict
     
 
+# sub-class for BERT run locally using transformers
 class BertClient(ApiClient):
     def __init__(self, model):
         super().__init__(model)
         self.client = pipeline('fill-mask', model=model)
 
 
+    # no request function needed for BERT, token probs are readily available
     def get_token_prob(self, sentence, token):
         try:
             prob = self.client(sentence, targets=token.lower())[0]['score']
@@ -84,6 +89,7 @@ class BertClient(ApiClient):
         return np.log(prob)
     
 
+# sub-class for Llama set up locally with transformers
 class LlamaClient(ApiClient):
     def __init__(self, model, key):
         super().__init__(model, key)
@@ -91,6 +97,7 @@ class LlamaClient(ApiClient):
         self.tokenizer = AutoTokenizer.from_pretrained(model, device_map="auto", token=key)
 
 
+    # generate text with token probs, extract, and format. Works with parent class prob function (ApiClient.get_token_prob)
     def request(self, payload, n_logprobs=20):
         # clear memory before each request to avoid OOM errors
         torch.cuda.empty_cache()
